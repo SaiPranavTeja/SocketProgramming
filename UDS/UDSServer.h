@@ -1,29 +1,42 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/types.h>
+#ifndef UDS_SERVER_H
+#define UDS_SERVER_H
+
+#include <functional>
+#include <string>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <string.h>
+#include <unistd.h>
 #include <vector>
-#include <string>
-enum class SERVER_INIT_STATUS:int{
-    INIT_SUCCESS=0,
-    SOCKET_ERROR=-1,
-    BIND_ERROR=-2
-};
-class UDSServe
-{
-private:
-    /* data */
-    int server_fd;
-    std::vector<int> client_fds;
-    socklen_t client_len;
-    struct sockaddr_un server_addr, client_addr;
+#include <thread>
+#include <mutex>
+#include <unordered_set>
+
+template<typename Request, typename Response>
+class UDSServer {
 public:
-    UDSServe(std::string socket_path);
-    ~UDSServe();
-    SERVER_INIT_STATUS init();
+    using RequestHandler = std::function<Response(const Request&)>;
 
+    UDSServer(const std::string& socket_path);
+    ~UDSServer();
+
+    void setRequestHandler(RequestHandler handler);
+    void start();
+
+private:
+    std::string socket_path_;
+    int server_fd_;
+    RequestHandler request_handler_;
+    std::vector<std::thread> client_threads_;
+    std::unordered_set<int> clients_;
+    std::mutex clients_mutex_;
+    bool stop_server_;
+
+    void handleClient(int client_fd);
+    void processRequest(Request request_);
+    void acceptClients();
+    void cleanup();
 };
 
+#include "UDSServerImpl.h"
+
+#endif // UDS_SERVER_H
